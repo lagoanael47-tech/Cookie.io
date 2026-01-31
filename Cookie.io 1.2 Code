@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cookie.io — Bobux Edition</title>
+
+  <!-- Police pixel style Minecraft -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+  <style>
+    html, body { margin:0; padding:0; overflow:hidden; background:#000; }
+    canvas { display:block; width:100vw; height:100vh; background:#222; position:relative; z-index:1; outline:none; }
+
+    .title-minecraft {
+      font-family: "Press Start 2P", Impact, Arial, sans-serif;
+      font-size: 56px; line-height: 1; letter-spacing: 2px; color: #f8f0d8;
+      display: inline-block; padding: 6px 18px; border-radius: 8px;
+      background: linear-gradient(180deg,#6b8a3a 0%, #4a6a2a 100%);
+      box-shadow: 0 2px 0 #3f5322, 0 6px 0 rgba(0,0,0,0.45);
+      text-shadow: 2px 2px 0 #111, -1px -1px 0 #222, 1px -1px 0 #222, -1px 1px 0 #222;
+      border: 3px solid rgba(0,0,0,0.6); transform: translateY(-2px);
+      user-select: none; pointer-events: none;
+    }
+    @media (max-width: 600px) {
+      .title-minecraft { font-size: 20px; padding:4px 8px; letter-spacing:1px; }
+    }
+
+    #hud, #menu, #pauseMenu, #shopMenu, #gameOverMenu, #saveMenu, #accountMenu, #sharkImage {
+      position:absolute; font-family:sans-serif; font-size:18px; z-index:10;
+    }
+
+    #hud { top:10px; left:10px; color:white; background:rgba(0,0,0,0.5); padding:10px; border-radius:10px; display:none; }
+
+    #menu, #pauseMenu, #shopMenu, #gameOverMenu, #saveMenu, #accountMenu {
+      top:50%; left:50%; transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.85); padding:30px; border-radius:10px; text-align:center; min-width:420px; color:white;
+      box-shadow:0 10px 30px rgba(0,0,0,0.6); display:none;
+    }
+    #menu { display:block; }
+
+    button { font-size:14px; padding:10px 14px; margin:6px; cursor:pointer; color:#fff; background:#333; border:1px solid #555; border-radius:8px; }
+    button:hover { background:#444; }
+    input[type="text"], input[type="password"] {
+      width:100%; padding:10px 12px; margin:8px 0 12px; border-radius:8px;
+      border:1px solid #555; background:#111; color:#fff; outline:none;
+    }
+
+    #shop { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+    #shop button { flex:1 0 140px; min-height:44px; font-weight:600; }
+
+    #sharkImage {
+      display:none; top:50%; left:50%; transform:translate(-50%,-50%);
+      max-width:80vw; max-height:80vh; border:4px solid white; border-radius:12px; pointer-events:none;
+    }
+
+    .pseudo-label { position: absolute; color: white; font-weight: bold; text-shadow: 1px 1px 2px black; pointer-events: none; z-index: 11; }
+
+    .slot { display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.06); padding:10px 12px; border-radius:8px; margin:10px 0; }
+    .slot-info { text-align:left; font-size:14px; color:#ddd; }
+    .slot-actions { display:flex; gap:8px; }
+    .slot-title { font-weight:bold; color:#fff; }
+    .small { font-size:12px; color:#aaa; }
+    .row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+    .status { font-size:14px; color:#ccc; min-height:20px; }
+
+    #brand {
+      position: fixed; right: 12px; bottom: 10px; z-index: 9999;
+      font-family: sans-serif; font-size: 14px; color: #fff;
+      background: rgba(0,0,0,0.6); padding: 6px 10px; border-radius: 8px;
+      border: 1px solid #555; display:flex; align-items:center; gap:10px;
+    }
+    #brand .title { opacity:0.9; pointer-events: none; }
+    #brand a { color:#4FC3F7; text-decoration:none; font-weight:700; background:rgba(255,255,255,0.08); padding:4px 8px; border-radius:6px; border:1px solid #555; }
+    #brand a:hover { color:#81D4FA; background:rgba(255,255,255,0.15); }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" tabindex="0"></canvas>
+
+  <!-- Chemin relatif universel (Windows/Linux) -->
+  <img id="sharkImage" src="Image/shark.jpeg" alt="Shark Image" />
+
+  <!-- Menu principal -->
+  <div id="menu">
+    <h2 class="title-minecraft">COOKIE.IO</h2>
+    <div style="height:12px;"></div>
+    <input type="text" id="pseudoInput1" placeholder="Pseudo Joueur 1" />
+    <input type="text" id="pseudoInput2" placeholder="Pseudo Joueur 2" style="display:none;" />
+    <div class="row">
+      <button id="btnToggle2P">Mode 2 joueurs : OFF</button>
+      <button id="btnAuth">Jouer</button>
+      <button id="btnFullscreen">Plein écran</button>
+    </div>
+    <p class="small">F6: Sauvegardes • F7: Pause • F8: Boutique • F9: Comptes • M: Suivi souris ON/OFF • Maintenir Shift: Requin</p>
+    <div id="mouseToggle" style="font-size:12px;color:#ddd;margin-top:8px;">Suivi souris: <strong id="mouseStatus">ON</strong></div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    Compte: <span id="accountName">Invité</span> | J1: <span id="pseudo1"></span> | J2: <span id="pseudo2"></span> | Score: <span id="score">0</span> | Bobux: <span id="bobux">0</span> 💸
+  </div>
+
+  <div id="label1" class="pseudo-label"></div>
+  <div id="label2" class="pseudo-label"></div>
+
+  <div id="pauseMenu">
+    <h2>Pause</h2>
+    <p>F6: Sauvegardes · F7: Pause · F8: Boutique · F9: Comptes</p>
+    <button id="btnResume">Reprendre</button>
+  </div>
+
+  <div id="shopMenu">
+    <h2>Boutique (25 couleurs)</h2>
+    <div id="shop"></div>
+    <button id="btnCloseShop">Fermer Boutique (F8)</button>
+  </div>
+
+  <div id="saveMenu">
+    <h2>Slots de sauvegarde (F6)</h2>
+    <div id="slots"></div>
+    <button id="btnCloseSaves">Fermer (F6)</button>
+  </div>
+
+  <div id="accountMenu">
+    <h2>Système de compte (F9)</h2>
+    <div class="status" id="accountStatus"></div>
+    <input type="text" id="accUsername" placeholder="Nom d'utilisateur" />
+    <input type="password" id="accPassword" placeholder="Mot de passe" />
+    <div class="row">
+      <button id="btnCreateAcc">Créer un compte</button>
+      <button id="btnLoginAcc">Se connecter</button>
+      <button id="btnLogoutAcc">Se déconnecter</button>
+    </div>
+    <p class="small">Comptes stockés localement dans ce navigateur.</p>
+    <button id="btnCloseAccount">Fermer (F9)</button>
+  </div>
+
+  <div id="gameOverMenu">
+    <h2>💀 Tu es mort !</h2>
+    <p>Score final: <span id="finalScore">0</span></p>
+    <p>Bobux gagnés: <span id="finalBobux">0</span> 💸</p>
+    <button id="btnRestart">Rejouer</button>
+  </div>
+
+  <div id="brand">
+    <span class="title">Cookie.io 1.2</span>
+    <a href="https://www.youtube.com/@CoookieCraft45" target="_blank" rel="noopener noreferrer">Abonne-Toi</a>
+  </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+  const el = id => document.getElementById(id);
+
+  function resizeCanvas(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  window.addEventListener("resize", resizeCanvas); resizeCanvas();
+
+  let pseudo1 = "", pseudo2 = "", score = 0, bobux = 0, paused = false, alive = false;
+  let playerColor = "lime", twoPlayers = false;
+  let currentUser = null;
+
+  // players
+  const player1 = { x: 200, y: 200, size: 22, speed: 6, prevX:200, prevY:200 };
+  const player2 = { x: 400, y: 200, size: 22, speed: 6, prevX:400, prevY:200 };
+  const bots = [];
+
+  // input
+  const keys = {};
+  let mouseX = canvas.width/2, mouseY = canvas.height/2;
+  let mouseFollow = true;
+  el("mouseStatus").textContent = mouseFollow ? "ON" : "OFF";
+
+  canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+  });
+
+  window.addEventListener("keydown", (e) => {
+    keys[e.code] = true;
+
+    // prevent scroll
+    if (e.code.startsWith("Arrow")) e.preventDefault();
+
+    // shortcuts
+    if (e.code === "F6") toggleSaves();
+    if (e.code === "F7") togglePause();
+    if (e.code === "F8") toggleShop();
+    if (e.code === "F9") toggleAccount();
+    if (e.code === "KeyM") {
+      mouseFollow = !mouseFollow;
+      el("mouseStatus").textContent = mouseFollow ? "ON" : "OFF";
+    }
+
+    // shark image
+    if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+      el("sharkImage").style.display = "block";
+    }
+  }, { passive:false });
+
+  window.addEventListener("keyup", (e) => {
+    keys[e.code] = false;
+    if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+      el("sharkImage").style.display = "none";
+    }
+  });
+
+  /* ===== Boutique ===== */
+  const COLORS = [
+    {name:"Lime",color:"lime",cost:1500},{name:"Cyan",color:"cyan",cost:1600},
+    {name:"Orange",color:"orange",cost:1700},{name:"Magenta",color:"magenta",cost:1800},
+    {name:"Blue",color:"blue",cost:1900},{name:"Yellow",color:"yellow",cost:2000},
+    {name:"Purple",color:"purple",cost:2100},{name:"Pink",color:"pink",cost:2200},
+    {name:"Brown",color:"brown",cost:2300},{name:"Gray",color:"gray",cost:2400},
+    {name:"White",color:"white",cost:2500},{name:"Black",color:"black",cost:2600},
+    {name:"Red",color:"red",cost:2700},{name:"Green",color:"green",cost:2800},
+    {name:"Teal",color:"teal",cost:2900},{name:"Olive",color:"olive",cost:3000},
+    {name:"Navy",color:"navy",cost:3100},{name:"Gold",color:"gold",cost:3200},
+    {name:"Silver",color:"silver",cost:3300},{name:"Beige",color:"beige",cost:3400},
+    {name:"Coral",color:"coral",cost:3500},{name:"Indigo",color:"indigo",cost:3600},
+    {name:"Violet",color:"violet",cost:3700},{name:"Turquoise",color:"turquoise",cost:3800},
+    {name:"Rainbow",color:"rainbow",cost:4000}
+  ];
+  function buildShop(){
+    const shop = el("shop"); shop.innerHTML = "";
+    COLORS.forEach(c=>{
+      const btn = document.createElement("button");
+      btn.textContent = `${c.name} — ${c.cost}💸`;
+      btn.style.background = c.color==="rainbow" ? "linear-gradient(90deg,red,orange,yellow,green,cyan,blue,violet)" : c.color;
+      btn.style.color = (["yellow","white","beige","silver"].includes(c.color)) ? "#000" : "#fff";
+      btn.addEventListener("click", ()=>buyColor(c));
+      shop.appendChild(btn);
+    });
+  }
+  function buyColor(c){
+    if(bobux >= c.cost){
+      playerColor = c.color; bobux -= c.cost; el("bobux").textContent = bobux; alert(`Couleur ${c.name} achetée !`);
+    } else alert("Pas assez de bobux !");
+  }
+
+  /* ===== Gameplay ===== */
+  function spawnBot(){
+    bots.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, size: 20, speed: 1+Math.random()*2, alive: true });
+  }
+
+  function startGame(){
+    score = 0; bobux = 0; alive = true; paused = false;
+    player1.x = canvas.width/3; player1.y = canvas.height/2; player1.prevX = player1.x; player1.prevY = player1.y;
+    player2.x = canvas.width*2/3; player2.y = canvas.height/2; player2.prevX = player2.x; player2.prevY = player2.y;
+    bots.length = 0; for(let i=0;i<8;i++) spawnBot();
+    el("score").textContent = score; el("bobux").textContent = bobux;
+    el("hud").style.display = "block"; el("gameOverMenu").style.display = "none";
+    buildShop(); canvas.focus();
+  }
+
+  function gameOver(){
+    alive = false; bots.forEach(b=>b.alive=false);
+    el("finalScore").textContent = score; el("finalBobux").textContent = bobux;
+    el("gameOverMenu").style.display = "block"; el("hud").style.display = "none";
+  }
+
+  function isMoving(p){
+    const dx = p.x - p.prevX, dy = p.y - p.prevY;
+    return Math.abs(dx) + Math.abs(dy) > 0.01;
+  }
+
+  function moveTowards(p, tx, ty){
+    const dx = tx - p.x, dy = ty - p.y;
+    const dist = Math.hypot(dx, dy);
+    if(dist < 0.001) return;
+    const step = Math.min(p.speed, dist);
+    p.x += (dx/dist) * step;
+    p.y += (dy/dist) * step;
+  }
+
+  function update(){
+    if(!alive || paused) return;
+
+    player1.prevX = player1.x; player1.prevY = player1.y;
+    player2.prevX = player2.x; player2.prevY = player2.y;
+
+    // PLAYER 1: follow mouse or ZQSD
+    if(mouseFollow){
+      moveTowards(player1, mouseX, mouseY);
+    } else {
+      if(keys["KeyZ"]) player1.y -= player1.speed;
+      if(keys["KeyS"]) player1.y += player1.speed;
+      if(keys["KeyQ"]) player1.x -= player1.speed;
+      if(keys["KeyD"]) player1.x += player1.speed;
+    }
+
+    // PLAYER 2: arrows if enabled
+    if(twoPlayers){
+      if(keys["ArrowUp"]) player2.y -= player2.speed;
+      if(keys["ArrowDown"]) player2.y += player2.speed;
+      if(keys["ArrowLeft"]) player2.x -= player2.speed;
+      if(keys["ArrowRight"]) player2.x += player2.speed;
+    }
+
+    // clamp to canvas
+    [player1, player2].forEach((p,i)=>{
+      if(i===1 && !twoPlayers) return;
+      p.x = Math.max(p.size, Math.min(canvas.width - p.size, p.x));
+      p.y = Math.max(p.size, Math.min(canvas.height - p.size, p.y));
+    });
+
+    // bots AI & collisions
+    bots.forEach(b=>{
+      if(!b.alive) return;
+      const target = (!twoPlayers || Math.random()<0.5) ? player1 : player2;
+      const dx = target.x - b.x, dy = target.y - b.y;
+      const dist = Math.hypot(dx,dy) || 1;
+      b.x += (dx/dist)*b.speed; b.y += (dy/dist)*b.speed;
+
+      [player1, player2].forEach((p,i)=>{
+        if(i===1 && !twoPlayers) return;
+        const d = Math.hypot(p.x - b.x, p.y - b.y);
+        if(d < p.size + b.size){
+          const moving = isMoving(p);
+          if(moving){
+            b.alive = false;
+            score += 10; bobux += 5;
+            el("score").textContent = score; el("bobux").textContent = bobux;
+            setTimeout(spawnBot, 1000);
+          } else {
+            gameOver();
+          }
+        }
+      });
+    });
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    [player1, player2].forEach((p,i)=>{
+      if(i===1 && !twoPlayers) return;
+      if(playerColor === "rainbow"){
+        const g=ctx.createLinearGradient(0,0,canvas.width,0);
+        g.addColorStop(0,"red"); g.addColorStop(0.17,"orange");
+        g.addColorStop(0.33,"yellow"); g.addColorStop(0.5,"green");
+        g.addColorStop(0.67,"blue"); g.addColorStop(0.83,"indigo"); g.addColorStop(1,"violet");
+        ctx.fillStyle = g;
+      } else ctx.fillStyle = playerColor;
+
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+
+      const name = i===0 ? pseudo1 : pseudo2;
+      const labelEl = i===0 ? el("label1") : el("label2");
+      labelEl.textContent = name || "";
+      labelEl.style.display = name && (i===0 || twoPlayers) ? "block" : "none";
+      labelEl.style.left = (p.x - 30) + "px";
+      labelEl.style.top = (p.y - p.size - 30) + "px";
+    });
+
+    ctx.fillStyle = "red";
+    bots.forEach(b=>{
+      if(!b.alive) return;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fill();
+    });
+  }
+
+  function loop(){ update(); draw(); requestAnimationFrame(loop); }
+
+  /* ===== Comptes & Sauvegardes ===== */
+  const ACC_KEY = "ballio_accounts";
+  function readAccounts(){ try { return JSON.parse(localStorage.getItem(ACC_KEY)) || {}; } catch { return {}; } }
+  function writeAccounts(accs){ localStorage.setItem(ACC_KEY, JSON.stringify(accs)); }
+  function setStatus(msg){ el("accountStatus").textContent = msg || ""; }
+  function refreshAccountHUD(){ el("accountName").textContent = currentUser ? currentUser.username : "Invité"; }
+
+  const SLOT_KEYS = ["ballio_slot_1","ballio_slot_2","ballio_slot_3"];
+  function getSnapshot(){
+    return {
+      ts: Date.now(), account: currentUser?.username || null,
+      pseudo1, pseudo2, twoPlayers, score, bobux, playerColor, paused,
+      p1:{x:player1.x,y:player1.y}, p2:{x:player2.x,y:player2.y},
+      bots: bots.filter(b=>b.alive).map(b=>({x:b.x,y:b.y,size:b.size,speed:b.speed}))
+    };
+  }
+  function applySnapshot(snap){
+    if(!snap) return;
+    pseudo1 = snap.pseudo1 || ""; pseudo2 = snap.pseudo2 || "";
+    twoPlayers = !!snap.twoPlayers; score = snap.score || 0; bobux = snap.bobux || 0;
+    playerColor = snap.playerColor || "lime"; paused = !!snap.paused;
+    player1.x = snap.p1?.x ?? canvas.width/3; player1.y = snap.p1?.y ?? canvas.height/2;
+    player2.x = snap.p2?.x ?? canvas.width*2/3; player2.y = snap.p2?.y ?? canvas.height/2;
+    player1.prevX = player1.x; player1.prevY = player1.y;
+    player2.prevX = player2.x; player2.prevY = player2.y;
+    bots.length = 0; (snap.bots||[]).forEach(b=>bots.push({x:b.x,y:b.y,size:b.size,speed:b.speed,alive:true}));
+    el("pseudo1").textContent = pseudo1; el("pseudo2").textContent = twoPlayers?pseudo2:"";
+    el("score").textContent = score; el("bobux").textContent = bobux;
+    if(snap.account){ currentUser = { username:snap.account }; refreshAccountHUD(); }
+    // afficher pause menu si la sauvegarde était en pause
+    el("pauseMenu").style.display = paused ? "block" : "none";
+  }
+  function renderSlots(){
+    const container = el("slots"); container.innerHTML = "";
+    SLOT_KEYS.forEach((key,i)=>{
+      const raw = localStorage.getItem(key);
+      const snap = raw ? JSON.parse(raw) : null;
+      const div = document.createElement("div"); div.className = "slot";
+      const info = document.createElement("div"); info.className = "slot-info";
+      const title = document.createElement("div"); title.className = "slot-title"; title.textContent = `Slot ${i+1}`;
+      const meta = document.createElement("div"); meta.className = "small";
+      meta.textContent = snap ? `Compte: ${snap.account||"Invité"} · J1: ${snap.pseudo1||"-"} · J2: ${snap.twoPlayers?snap.pseudo2:"OFF"} · Score: ${snap.score} · Bobux: ${snap.bobux} · Pause: ${snap.paused?"Oui":"Non"} · ${new Date(snap.ts).toLocaleString()}` : "Vide";
+      info.appendChild(title); info.appendChild(meta);
+
+      const actions = document.createElement("div"); actions.className = "slot-actions";
+      const btnSave = document.createElement("button"); btnSave.textContent = "Sauvegarder";
+      btnSave.addEventListener("click",()=>{ localStorage.setItem(SLOT_KEYS[i], JSON.stringify(getSnapshot())); renderSlots(); });
+
+      const btnLoad = document.createElement("button"); btnLoad.textContent = "Charger";
+      btnLoad.addEventListener("click",()=>{
+        const raw2=localStorage.getItem(SLOT_KEYS[i]);
+        if(!raw2) return alert("Slot vide.");
+        applySnapshot(JSON.parse(raw2));
+        el("menu").style.display="none";
+        el("hud").style.display="block";
+        alive=true;
+        if(bots.length===0) for(let j=0;j<8;j++) spawnBot();
+        canvas.focus();
+      });
+
+      const btnDel  = document.createElement("button"); btnDel.textContent = "Supprimer";
+      btnDel.addEventListener("click",()=>{ localStorage.removeItem(SLOT_KEYS[i]); renderSlots(); });
+
+      actions.appendChild(btnSave); actions.appendChild(btnLoad); actions.appendChild(btnDel);
+      div.appendChild(info); div.appendChild(actions); container.appendChild(div);
+    });
+  }
+
+  /* ===== Boutons ===== */
+  function attach(id, handler){ const b = el(id); if(b) b.addEventListener("click", handler); }
+  canvas.addEventListener("mousedown", ()=> canvas.focus());
+
+  attach("btnAuth", ()=>{
+    pseudo1 = el("pseudoInput1").value.trim();
+    pseudo2 = el("pseudoInput2").value.trim();
+    if(pseudo1==="") return alert("Pseudo joueur 1 requis !");
+    if(twoPlayers && pseudo2==="") return alert("Pseudo joueur 2 requis !");
+    el("menu").style.display="none";
+    el("pseudo1").textContent = pseudo1;
+    el("pseudo2").textContent = twoPlayers?pseudo2:"";
+    startGame(); loop();
+  });
+
+  attach("btnFullscreen", ()=>{
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+  });
+
+  attach("btnToggle2P", ()=>{
+    twoPlayers = !twoPlayers;
+    el("btnToggle2P").textContent = "Mode 2 joueurs : " + (twoPlayers ? "ON" : "OFF");
+    el("pseudoInput2").style.display = twoPlayers ? "block" : "none";
+  });
+
+  attach("btnResume", ()=>{ paused=false; el("pauseMenu").style.display="none"; });
+
+  attach("btnCloseShop", ()=> toggleShop());
+  attach("btnCloseSaves", ()=> toggleSaves());
+  attach("btnCloseAccount", ()=> toggleAccount());
+  attach("btnRestart", ()=>{ el("gameOverMenu").style.display="none"; startGame(); });
+
+  // comptes
+  attach("btnCreateAcc", ()=>{
+    const u = el("accUsername").value.trim();
+    const p = el("accPassword").value;
+    if(!u||!p) return setStatus("Nom d'utilisateur et mot de passe requis.");
+    const accs = readAccounts();
+    if(accs[u]) return setStatus("Ce nom d'utilisateur existe déjà.");
+    accs[u] = {password:p}; writeAccounts(accs);
+    currentUser={username:u}; setStatus(`Compte créé et connecté: ${u}`); refreshAccountHUD();
+  });
+
+  attach("btnLoginAcc", ()=>{
+    const u = el("accUsername").value.trim();
+    const p = el("accPassword").value;
+    const accs = readAccounts();
+    if(!accs[u]) return setStatus("Compte introuvable.");
+    if(accs[u].password !== p) return setStatus("Mot de passe incorrect.");
+    currentUser={username:u}; setStatus(`Connecté: ${u}`); refreshAccountHUD();
+  });
+
+  attach("btnLogoutAcc", ()=>{
+    currentUser = null; setStatus("Déconnecté."); refreshAccountHUD();
+  });
+
+  /* ===== Menus: pause auto sur Boutique/Sauvegardes ===== */
+  function togglePause(){
+    paused = !paused;
+    el("pauseMenu").style.display = paused ? "block" : "none";
+  }
+  function toggleShop(){
+    const menu = el("shopMenu");
+    const isOpening = menu.style.display !== "block";
+    if (isOpening) buildShop();
+    menu.style.display = isOpening ? "block" : "none";
+    if (alive) paused = isOpening ? true : false;
+    el("pauseMenu").style.display = paused ? "block" : "none";
+  }
+  function toggleSaves(){
+    const menu = el("saveMenu");
+    const isOpening = menu.style.display !== "block";
+    if (isOpening) renderSlots();
+    menu.style.display = isOpening ? "block" : "none";
+    if (alive) paused = isOpening ? true : false;
+    el("pauseMenu").style.display = paused ? "block" : "none";
+  }
+  function toggleAccount(){
+    const menu = el("accountMenu");
+    const isOpening = menu.style.display !== "block";
+    menu.style.display = isOpening ? "block" : "none";
+    setStatus(currentUser ? `Connecté en tant que ${currentUser.username}` : "Aucun compte connecté");
+  }
+
+  // init
+  el("accountName").textContent = "Invité";
+  const rect0 = canvas.getBoundingClientRect();
+  mouseX = rect0.width/2; mouseY = rect0.height/2;
+});
+</script>
+</body>
+</html>
